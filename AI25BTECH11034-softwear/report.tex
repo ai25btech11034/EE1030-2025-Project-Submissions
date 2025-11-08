@@ -1,0 +1,384 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+
+\title{\textbf{Image Compression using Singular Value Decomposition (SVD)\\
+with Power Iteration Method}}
+\author{AI25BTECH11034 - Sujal Chauhan}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\newpage
+
+\section{Introduction}
+Image compression is a fundamental technique in digital image processing that reduces the storage requirements and transmission bandwidth of images while maintaining acceptable quality. This report explores the application of Singular Value Decomposition (SVD) for image compression, implementing a power iteration-based algorithm to compute the dominant singular values and vectors efficiently.
+
+\section{Singular Value Decomposition: Theory}
+
+\subsection{Mathematical Foundation}
+Based on Gilbert Strang's exposition on SVD, any real matrix $\mathbf{A} \in \mathbb{R}^{m \times n}$ can be decomposed as:
+
+\begin{equation}
+\mathbf{A} = \mathbf{U} \mathbf{\Sigma} \mathbf{V}^T
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $\mathbf{U} \in \mathbb{R}^{m \times m}$ is an orthogonal matrix containing left singular vectors
+    \item $\mathbf{\Sigma} \in \mathbb{R}^{m \times n}$ is a diagonal matrix with singular values $\sigma_1 \geq \sigma_2 \geq \cdots \geq \sigma_r > 0$
+    \item $\mathbf{V} \in \mathbb{R}^{n \times n}$ is an orthogonal matrix containing right singular vectors
+\end{itemize}
+
+\subsection{Key Properties (Gilbert Strang's Perspective)}
+
+\subsubsection{Four Fundamental Subspaces}
+The SVD reveals the four fundamental subspaces of a matrix:
+\begin{enumerate}
+    \item \textbf{Column Space}: Spanned by the first $r$ columns of $\mathbf{U}$
+    \item \textbf{Row Space}: Spanned by the first $r$ columns of $\mathbf{V}$
+    \item \textbf{Null Space}: Spanned by the last $n-r$ columns of $\mathbf{V}$
+    \item \textbf{Left Null Space}: Spanned by the last $m-r$ columns of $\mathbf{U}$
+\end{enumerate}
+
+\subsubsection{Best Rank-k Approximation}
+For image compression, we use the truncated SVD:
+
+\begin{equation}
+\mathbf{A}_k = \sum_{i=1}^{k} \sigma_i \mathbf{u}_i \mathbf{v}_i^T
+\end{equation}
+
+This provides the \textbf{best rank-k approximation} to $\mathbf{A}$ in both the Frobenius and spectral norms:
+
+\begin{equation}
+\|\mathbf{A} - \mathbf{A}_k\|_F = \sqrt{\sum_{i=k+1}^{r} \sigma_i^2}
+\end{equation}
+
+\subsubsection{Geometric Interpretation}
+Each singular value $\sigma_i$ represents the "importance" or "energy" of the corresponding singular vector pair $(\mathbf{u}_i, \mathbf{v}_i)$. By keeping only the largest $k$ singular values, we capture the most significant patterns in the image while discarding less important details.
+
+\subsection{Connection to Eigenvalues}
+The singular values of $\mathbf{A}$ are the square roots of eigenvalues of $\mathbf{A}^T\mathbf{A}$ (or $\mathbf{A}\mathbf{A}^T$):
+
+\begin{align}
+\mathbf{A}^T\mathbf{A} \mathbf{v}_i &= \sigma_i^2 \mathbf{v}_i \\
+\mathbf{A}\mathbf{A}^T \mathbf{u}_i &= \sigma_i^2 \mathbf{u}_i
+\end{align}
+
+This relationship forms the basis of our power iteration algorithm.
+
+\section{Algorithm Comparison and Selection}
+
+\subsection{Available SVD Algorithms}
+
+\begin{table}[H]
+\centering
+\caption{Comparison of SVD Algorithms}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Algorithm} & \textbf{Time Complexity} & \textbf{Memory} & \textbf{Partial SVD} \\ \midrule
+Full SVD (LAPACK) & $O(mn^2)$ & $O(mn)$ & No \\
+Jacobi Method & $O(mn^2)$ & $O(mn)$ & No \\
+Divide-and-Conquer & $O(mn^2)$ & $O(mn)$ & No \\
+Lanczos (Tridiagonal) & $O(mnk)$ & $O(nk)$ & Yes \\
+Power Iteration & $O(mnk \cdot \text{iter})$ & $O(nk)$ & Yes \\
+Randomized SVD & $O(mnk)$ & $O(nk)$ & Yes \\ \bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Why Power Iteration with Deflation?}
+
+We chose the \textbf{Power Iteration with Deflation} method for the following reasons:
+
+\begin{enumerate}
+    \item \textbf{Simplicity}: Easy to implement and understand compared to Lanczos tridiagonalization
+    \item \textbf{Memory Efficiency}: Only requires $O(nk)$ storage, not the full matrix decomposition
+    \item \textbf{Partial SVD}: Computes only the $k$ largest singular values needed for compression
+    \item \textbf{Stability}: More numerically stable than full Lanczos for our image compression application
+    \item \textbf{Sequential Nature}: Computes singular values one at a time, allowing early termination
+\end{enumerate}
+
+\subsection{Mathematical Principle: Power Iteration}
+
+The power iteration method exploits the fact that repeated multiplication by a matrix amplifies the dominant eigenvector:
+
+\begin{equation}
+\mathbf{v}^{(t+1)} = \frac{\mathbf{A}^T\mathbf{A} \mathbf{v}^{(t)}}{\|\mathbf{A}^T\mathbf{A} \mathbf{v}^{(t)}\|}
+\end{equation}
+
+As $t \to \infty$, $\mathbf{v}^{(t)}$ converges to the dominant eigenvector of $\mathbf{A}^T\mathbf{A}$, which is the first right singular vector $\mathbf{v}_1$.
+
+\subsubsection{Convergence Analysis}
+If the eigenvalues satisfy $|\lambda_1| > |\lambda_2| \geq \cdots \geq |\lambda_n|$, then:
+
+\begin{equation}
+\|\mathbf{v}^{(t)} - \mathbf{v}_1\| = O\left(\left|\frac{\lambda_2}{\lambda_1}\right|^t\right)
+\end{equation}
+
+The convergence rate depends on the ratio $|\lambda_2/\lambda_1|$, known as the spectral gap.
+
+\subsubsection{Deflation for Multiple Singular Values}
+After computing $(\sigma_1, \mathbf{u}_1, \mathbf{v}_1)$, we deflate the matrix:
+
+\begin{equation}
+\mathbf{A}^T\mathbf{A} \leftarrow \mathbf{A}^T\mathbf{A} - \sigma_1^2 \mathbf{v}_1 \mathbf{v}_1^T
+\end{equation}
+
+This removes the contribution of the first singular component, allowing power iteration to find the next largest singular value.
+
+\section{Implementation Details}
+
+\subsection{Algorithm Pseudocode}
+
+\begin{algorithm}[H]
+\caption{SVD via Power Iteration with Deflation}
+\begin{algorithmic}[1]
+\Require Matrix $\mathbf{A} \in \mathbb{R}^{m \times n}$, rank $k$
+\Ensure Singular values $\{\sigma_i\}$, matrices $\mathbf{U}_k$, $\mathbf{V}_k$
+\State Compute $\mathbf{M} \leftarrow \mathbf{A}^T \mathbf{A}$
+\For{$i = 1$ to $k$}
+    \State Initialize random vector $\mathbf{v}^{(0)} \in \mathbb{R}^n$
+    \State $\mathbf{v}^{(0)} \leftarrow \mathbf{v}^{(0)} / \|\mathbf{v}^{(0)}\|$
+    \For{$t = 1$ to $\text{max\_iter}$}
+        \State $\mathbf{w} \leftarrow \mathbf{M} \mathbf{v}^{(t-1)}$
+        \State $\mathbf{v}^{(t)} \leftarrow \mathbf{w} / \|\mathbf{w}\|$
+        \If{$\|\mathbf{v}^{(t)} - \mathbf{v}^{(t-1)}\| < \epsilon$}
+            \State \textbf{break}
+        \EndIf
+    \EndFor
+    \State $\lambda_i \leftarrow (\mathbf{v}^{(t)})^T \mathbf{M} \mathbf{v}^{(t)}$ \Comment{Rayleigh quotient}
+    \State $\sigma_i \leftarrow \sqrt{|\lambda_i|}$
+    \State $\mathbf{V}_k[:, i] \leftarrow \mathbf{v}^{(t)}$
+    \State $\mathbf{U}_k[:, i] \leftarrow \mathbf{A} \mathbf{v}^{(t)} / \sigma_i$
+    \State $\mathbf{M} \leftarrow \mathbf{M} - \lambda_i \mathbf{v}^{(t)} (\mathbf{v}^{(t)})^T$ \Comment{Deflation}
+\EndFor
+\State \Return $\{\sigma_i\}, \mathbf{U}_k, \mathbf{V}_k$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Computational Complexity Analysis}
+
+\begin{itemize}
+    \item \textbf{Matrix-vector multiplication}: $O(mn)$ per iteration
+    \item \textbf{Power iterations per singular value}: Typically 50-100 iterations
+    \item \textbf{Total complexity}: $O(mnk \cdot \text{iter})$ where iter $\approx$ 50-100
+    \item \textbf{Space complexity}: $O(mn + nk)$ for $\mathbf{A}^T\mathbf{A}$ and singular vectors
+\end{itemize}
+
+For an image of size $512 \times 512$ with $k=50$:
+\begin{itemize}
+    \item Operations: $\approx 512 \times 512 \times 50 \times 100 = 1.3$ billion FLOPs
+    \item Memory: $\approx 262,144 + 25,600 = 287,744$ doubles $\approx 2.2$ MB
+\end{itemize}
+
+\subsection{Code Structure}
+
+The implementation is organized into modular components:
+
+\begin{itemize}
+    \item \texttt{pgm\_io.c/h}: Image I/O operations (PGM, JPG, PNG)
+    \item \texttt{matrix.c/h}: Matrix operations and linear algebra utilities
+    \item \texttt{lanczos.c/h}: Power iteration SVD algorithm
+    \item \texttt{svd\_compress.c/h}: Image compression and reconstruction
+    \item \texttt{main.c}: Command-line interface and workflow coordination
+\end{itemize}
+
+\subsection{Key Implementation Features}
+
+\begin{enumerate}
+    \item \textbf{Multi-format Support}: Automatic detection of JPG, PNG, and PGM formats using stb\_image library
+    \item \textbf{Grayscale Conversion}: Color images automatically converted to grayscale
+    \item \textbf{Error Metrics}: Computation of total error, average pixel error, and error percentage
+    \item \textbf{Memory Management}: Efficient allocation and deallocation to prevent memory leaks
+\end{enumerate}
+
+\section{Compression Formula}
+
+The compression ratio is calculated as:
+
+\begin{equation}
+\text{Compression Ratio} = \frac{\text{Original Size}}{\text{Compressed Size}} = \frac{m \times n}{mk + k + nk} = \frac{mn}{k(m + n + 1)}
+\end{equation}
+
+For large images where $m, n \gg 1$:
+
+\begin{equation}
+\text{Compression Ratio} \approx \frac{mn}{k(m + n)}
+\end{equation}
+
+The storage required is:
+\begin{equation}
+\text{Storage} = \frac{k(m + n + 1)}{mn} \times 100\%
+\end{equation}
+
+\section{Experimental Results}
+
+\subsection{Test Image}
+We tested our algorithm on a grayscale image (Einstein portrait) with dimensions $182 \times 186$ pixels.
+\input{table/data_einstein}
+\input{table/data_globe}
+\input{table/data_greyscale}
+
+\subsection{Top 5 Singular Values for k=50}
+
+\input{table/top_singular_einstien}
+\input{table/top_singular_globe}
+\input{table/top_singular._greyscale}
+
+
+\subsection{Visual Comparison}
+
+\begin{figure}[H]
+\centering
+\begin{tabular}{cccc}
+\includegraphics[width=0.22\textwidth]{figs/einstein.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_5.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_10.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_20.jpg} \\
+(a) Original & (b) k=5 & (c) k=10 & (d) k=20 \\[1em]
+\includegraphics[width=0.22\textwidth]{figs/einstein_50.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_100.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_150.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/einstein_200.jpg} \\
+(e) k=50 & (f) k=100 & (g) k=150 & (h) k=200
+\end{tabular}
+\caption{A}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tabular}{cccc}
+\includegraphics[width=0.22\textwidth]{figs/globe.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_5.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_10.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_20.jpg} \\
+(a) Original & (b) k=5 & (c) k=10 & (d) k=20 \\[1em]
+\includegraphics[width=0.22\textwidth]{figs/globe_50.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_100.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_150.jpg} &
+\includegraphics[width=0.22\textwidth]{figs/globe_200.jpg} \\
+(e) k=50 & (f) k=100 & (g) k=150 & (h) k=200
+\end{tabular}
+\caption{B}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tabular}{cccc}
+\includegraphics[width=0.22\textwidth]{figs/greyscale.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_5.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_10.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_20.png} \\
+(a) Original & (b) k=5 & (c) k=10 & (d) k=20 \\[1em]
+\includegraphics[width=0.22\textwidth]{figs/greyscale_50.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_100.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_150.png} &
+\includegraphics[width=0.22\textwidth]{figs/greyscale_200.png} \\
+(e) k=50 & (f) k=100 & (g) k=150 & (h) k=200
+\end{tabular}
+\caption{C}
+\end{figure}
+
+
+
+\section{Trade-offs Analysis}
+
+\subsection{Quality vs. Compression Trade-off}
+
+\begin{figure}[H]
+\centering
+\caption{Error percentage vs. Compression ratio for various k values}
+\end{figure}
+
+The relationship between compression ratio and quality exhibits the following characteristics:
+
+\begin{enumerate}
+    \item \textbf{Low k (5-20)}: High compression ratios (12:1 to 46:1) but significant quality loss (6-14\% error)
+    \item \textbf{Medium k (50-100)}: Balanced compression (2.5:1 to 5:1) with acceptable quality (1-2\% error)
+    \item \textbf{High k (150-200)}: Low compression (1.3:1 to 1.7:1) with near-perfect quality ($<0.3\%$ error)
+\end{enumerate}
+
+
+
+\subsection{Computational Cost vs. k}
+
+\begin{itemize}
+    \item \textbf{Computation Time}: Linear in $k$ (each singular value requires $\sim$50-100 power iterations)
+    \item \textbf{Memory Usage}: Linear in $k$ (must store $k$ vectors of length $m$ and $n$)
+    \item \textbf{Reconstruction Time}: $O(mnk)$ for matrix multiplication
+\end{itemize}
+
+For the $182 \times 186$ test image:
+\begin{itemize}
+    \item k=5: ~0.5 seconds
+    \item k=50: ~4 seconds
+    \item k=200: ~15 seconds
+\end{itemize}
+
+\subsection{Perceptual Quality Insights}
+
+\begin{itemize}
+    \item Even k=10 preserves the overall structure and recognizability
+    \item k=50 provides visually acceptable quality for most applications
+    \item Beyond k=100, improvements become barely perceptible
+\end{itemize}
+
+\section{Advantages and Limitations}
+
+\subsection{Advantages}
+
+\begin{enumerate}
+    \item \textbf{Optimal Approximation}: Guaranteed best rank-k approximation (Eckart-Young theorem)
+    \item \textbf{Energy Compaction}: Most image energy concentrated in top singular values
+    \item \textbf{Adaptivity}: Automatically adapts to image content
+    \item \textbf{Interpretability}: Each singular value has clear geometric meaning
+    \item \textbf{Scalability}: Can choose k based on quality requirements
+\end{enumerate}
+
+\subsection{Limitations}
+
+\begin{enumerate}
+    \item \textbf{Global Method}: Treats entire image uniformly, doesn't adapt to local features
+    \item \textbf{Not Block-Based}: Unlike JPEG, can't compress regions independently
+    \item \textbf{Computation Cost}: $O(mnk \cdot \text{iter})$ can be expensive for large images
+    \item \textbf{Storage Overhead}: Must store $\mathbf{U}$, $\mathbf{\Sigma}$, $\mathbf{V}$ matrices
+    
+\end{enumerate}
+
+
+\section{Conclusion}
+
+This project successfully implemented image compression using SVD with a power iteration algorithm. Key findings include:
+
+\begin{itemize}
+    \item Power iteration with deflation provides a simple, efficient method for computing partial SVD
+    \item The top 50-100 singular values capture most perceptually important information
+    \item Compression ratio ranges from 1.3:1 (k=200) to 46:1 (k=5)
+    \item Error percentage decreases from 14.4\% (k=5) to 0.1\% (k=200)
+    \item Optimal k=50 provides good balance: 4.94:1 compression with 2.3\% error
+\end{itemize}
+
+
+
+
+
+
+
+
+
+\end{document}
